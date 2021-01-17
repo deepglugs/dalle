@@ -45,18 +45,33 @@ python3 dalle.py --source path/to/images/and/tags/ \
 Generate a single image from tag file:
 
 ```bash
-python3 dalle.py --generate --vocab curated_512.vocab --vae vae.pt --dalle dalle.pt --source my_tag.txt --output results/my_image.png
+python3 dalle.py --generate \
+				 --vocab curated_512.vocab \
+				 --vae vae.pt \
+				 --dalle dalle.pt \
+				 --source my_tag.txt \
+				 --output results/my_image.png
 ```
 
 Generate images from a directory containing tag files:
 
 ```bash
-python3 dalle.py --generate --vocab curated_512.vocab --vae vae.pt --dalle dalle.pt --source my/tags/ --output results
+python3 dalle.py --generate \
+				 --vocab curated_512.vocab \
+				 --vae vae.pt \
+				 --dalle dalle.pt \
+				 --source my/tags/ \
+				 --output results
 ```
 
 Generate an image using specified tags:
 
 ```bash
-python3 dalle.py --generate --vocab curated_512.vocab --vae vae.pt --dalle dalle.pt --tags="1girl, white_swimsuit, red_hair" --output samples/my_image.png
+python3 dalle.py --generate \
+				 --vocab curated_512.vocab \
+				 --vae vae.pt \
+				 --dalle dalle.pt \
+				 --tags="1girl, white_swimsuit, red_hair" \
+				 --output samples/my_image.png
 ```
 
