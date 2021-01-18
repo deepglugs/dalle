@@ -71,6 +71,11 @@ def get_dalle(vae, vocab, args):
 def train_vae(path, vocab, args):
 
     vae = get_vae(args)
+    vae_ = vae
+
+    if args.dp:
+        vae = torch.nn.DataParallel(vae)
+        vae_ = vae.module
 
     tforms = transforms.Compose([
             transforms.Resize((args.size, args.size)),
@@ -99,6 +104,7 @@ def train_vae(path, vocab, args):
                                      num_workers=8)
 
     optim = Adam(vae.parameters(), lr=args.lr)
+    amp_scaler = GradScaler(enabled=args.fp16)
 
     vgg_loss = None
 
@@ -125,17 +131,20 @@ def train_vae(path, vocab, args):
             images = images.to(args.device)
             labels = labels.to(args.device)
 
-            recons = vae(images)
-            loss = loss_fn(images, recons)
+            with autocast(enabled=args.fp16):
+                recons = vae(images)
 
-            if vgg_loss is not None:
-                loss += vgg_loss(images, recons)
+                loss = loss_fn(images, recons)
+
+                if vgg_loss is not None:
+                    loss += vgg_loss(images, recons)
 
             optim.zero_grad()
 
-            loss.backward()
+            amp_scaler.scale(loss).backward()
 
-            optim.step()
+            amp_scaler.step(optim)
+            amp_scaler.update()
 
             t2 = time.monotonic()
             rate.append(round(1.0 / (t2 - t1), 2))
@@ -149,22 +158,22 @@ def train_vae(path, vocab, args):
 
             if step % 1000 == 0:
                 with torch.no_grad():
-                    codes = vae.get_codebook_indices(images[:disp_size])
-                    imgx = vae.decode(codes)
+                    codes = vae_.get_codebook_indices(images[:disp_size])
+                    imgx = vae_.decode(codes)
 
                 grid = torch.cat([images[:disp_size], recons[:disp_size], imgx])
                 grid = make_grid(grid, nrow=disp_size, normalize=True, range=(-1, 1))
                 VTF.to_pil_image(grid).save(os.path.join(args.samples_out, f"vae_{epoch}_{int(step / epoch)}.png"))
                 print("saving checkpoint...")
-                torch.save(vae.cpu().state_dict(), args.vae)
-                vae.to(args.device)
+                torch.save(vae_.cpu().state_dict(), args.vae)
+                vae_.to(args.device)
                 print("saving complete")
 
         if args.tempsched:
-            vae.temperature *= dk
+            vae_.temperature *= dk
             print("Current temperature: ", vae.temperature)
 
-    torch.save(vae.cpu().state_dict(), args.vae)
+    torch.save(vae_.cpu().state_dict(), args.vae)
 
 
 def train_dalle(vae, args):
@@ -208,6 +217,11 @@ def train_dalle(vae, args):
                                      num_workers=0)
 
     dalle = get_dalle(vae, vocab, args)
+    dalle_ = dalle
+
+    if args.dp:
+        dalle = torch.nn.DataParallel(dalle)
+        dalle_ = dalle.module
 
     optimizer = Adam(dalle.parameters(), lr=args.lr)
     if args.vgg_loss:
@@ -252,23 +266,23 @@ def train_dalle(vae, args):
                     loss.item() / len(image)))
 
             if batch_idx % 100 == 0:
-                oimgs = dalle.generate_images(text, mask=mask)
+                oimgs = dalle_.generate_images(text, mask=mask)
                 grid = oimgs[:disp_size]
                 grid = make_grid(grid, nrow=disp_size,
                                  normalize=True, range=(-1, 1))
                 VTF.to_pil_image(grid).save(
                     os.path.join(args.samples_out,
                                  f"dalle_{epoch}_{int(batch_idx)}.png"))
-                torch.save(dalle.cpu().state_dict(), args.dalle)
-                dalle.to(args.device)
+                torch.save(dalle_.cpu().state_dict(), args.dalle)
+                dalle_.to(args.device)
 
             batch_idx += 1
 
         print('====> Epoch: {} Average loss: {:.4f}'.format(
           epoch, train_loss / len(data)))
 
-    torch.save(dalle.cpu().state_dict(), args.dalle)
-    dalle.to(args.device)
+    torch.save(dalle_.cpu().state_dict(), args.dalle)
+    dalle_.to(args.device)
 
 
 def generate(args):
@@ -368,6 +382,7 @@ def main():
     parser.add_argument('--tempsched', action='store_true')
     parser.add_argument('--shuffle_tags', action='store_true')
     parser.add_argument('--fp16', action='store_true')
+    parser.add_argument('--dp', action='store_true')
     parser.add_argument('--vgg_loss', action='store_true')
     parser.add_argument('--vae_layers', default=2, type=int)
     parser.add_argument('--codebook_dims', default=1024, type=int)
