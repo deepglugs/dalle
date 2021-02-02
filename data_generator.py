@@ -395,6 +395,7 @@ class ImageLabelDataset():
         #    print("failzors")
         #    print(ex)
         #    continue
+
         # print(bn)
         muh_oh = self.txts_oh[bn]
         y = muh_oh

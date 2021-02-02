@@ -114,9 +114,21 @@ def tokenize(tags, vocab, pad=True, offset=0):
             else:
                 out.append(vocab.index(tag) + offset)
 
-    out += [0] * (len(vocab) - len(out))
+    if len(out) < len(vocab):
+        out += [0] * (len(vocab) - len(out))
 
     return out
+
+
+def decode(tags, vocab, padded=True, offset=0):
+
+    decoded = []
+
+    for tag in tags:
+        if tag - offset > 0:
+            decoded.append(vocab[tag - offset])
+
+    return decoded
 
 
 def fix_tags(txt_data):
