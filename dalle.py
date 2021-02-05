@@ -274,6 +274,8 @@ def train_dalle(vae, args):
     dalle = get_dalle(vae, vocab, args)
     dalle_ = dalle
 
+    clip = None
+
     if args.clip is not None:
         clip = get_clip(vocab, args)
 
